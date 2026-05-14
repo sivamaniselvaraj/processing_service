@@ -38,7 +38,7 @@ public class KafkaConsumerConfig {
      Consumer Configuration
      */
     @Bean
-    public ConsumerFactory<String, OrderEvent> consumerFactory() {
+    public ConsumerFactory<String, String> consumerFactory() {
 
         Map<String, Object> config = new HashMap<>();
 
@@ -50,19 +50,22 @@ public class KafkaConsumerConfig {
 
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, KAFKA_GROUP_AUTO_OFFSET_RESET);
         config.put(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG, KAFKA_RETRY_BACKOFF_MILLI_SEC);
-        JacksonJsonDeserializer<OrderEvent> payloadJsonDeserializer = new JacksonJsonDeserializer<>();
-        payloadJsonDeserializer.addTrustedPackages("org.assignments.processing.dto");
+        config.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,    10);
+        JacksonJsonDeserializer<String> payloadJsonDeserializer = new JacksonJsonDeserializer<>();
+        payloadJsonDeserializer.addTrustedPackages("*");
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), payloadJsonDeserializer);
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, OrderEvent>
+    public ConcurrentKafkaListenerContainerFactory<String, String>
     kafkaListenerContainerFactory() {
 
-        ConcurrentKafkaListenerContainerFactory<String, OrderEvent> factory =
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
 
         factory.setConsumerFactory(consumerFactory());
+
+        factory.setConcurrency(3);   // 3 consumer threads per topic
 
         return factory;
     }

@@ -1,18 +1,12 @@
 package org.assignments.processing.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.assignments.processing.dto.OrderEvent;
 import org.assignments.processing.entity.OutboxEvent;
-import org.assignments.processing.repository.OutboxRepository;
+import org.assignments.processing.repository.OutboxEventRepository;
+import org.assignments.processing.utils.JSONOperation;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -20,28 +14,45 @@ import java.util.UUID;
 public class OutboxService {
 
     @Autowired
-    OutboxRepository outboxRepository;
+    OutboxEventRepository outboxEventRepository;
 
-    public void createOutbox(String status, OrderEvent event) throws JsonProcessingException {
+    /**
+     * Persist an outgoing event to the outbox.
+     * Must be called within an active @Transactional context.
+     *
+     * @param correlationId  saga's jobId — the correlation key
+     * @param orderId        originating order
+     * @param topic          Kafka topic
+     * @param eventType      event name e.g. INVENTORY_CHECK_REQUESTED
+     * @param payload        event payload object (will be serialized to JSON)
+     */
+    public OutboxEvent createEvent(UUID correlationId,
+                            UUID orderId,
+                            String topic,
+                            String eventType,
+                            Object payload) {
 
-        Map<String,Object> payload = Map.of(
-                "orderId", event.getOrderId(),
-                "correlationId", event.getCorrelationId(),
-                "status", status
-        );
+        // Idempotency guard — don't insert duplicate events for the same saga step
+        if (outboxEventRepository.existsByCorrelationIdAndEventType(correlationId, eventType)) {
+            log.warn("Duplicate outbox event skipped: correlationId={} eventType={}", correlationId, eventType);
+            return null;
+        }
 
-        OutboxEvent outbox = new OutboxEvent();
+        String serializedPayload = JSONOperation.serialize(payload);
 
-        outbox.setEventId(UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE);
-        outbox.setAggregateType("Processing");
-        outbox.setAggregateId(event.getOrderId());
-        outbox.setEventType(status);
-        outbox.setPayload(new ObjectMapper().writeValueAsString(payload));
-        outbox.setStatus("PENDING");
-        outbox.setCreatedAt(LocalDateTime.now());
+        OutboxEvent event = OutboxEvent.builder()
+                .correlationId(correlationId)   // ← Correlation Key
+                .orderId(orderId)
+                .topic(topic)
+                .eventType(eventType)
+                .payload(serializedPayload)
+                .partitionKey(correlationId.toString()) // order per-saga delivery on Kafka
+                .build();
 
-        outboxRepository.save(outbox);
-
+        OutboxEvent saved = outboxEventRepository.save(event);
+        log.debug("Outbox event saved: eventId={} correlationId={} eventType={}",
+                saved.getEventId(), correlationId, eventType);
+        return saved;
     }
 
 }

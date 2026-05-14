@@ -13,54 +13,155 @@ import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.support.serializer.JacksonJsonDeserializer;
 import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
+import org.springframework.kafka.transaction.KafkaTransactionManager;
 
 import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
 public class KafkaProducerConfig {
+
     @Value("${spring.kafka.bootstrap-servers}")
-    private String KAFKA_BOOTSTRAP_SERVER;
+    private String bootstrapServers;
 
-    @Value("${spring.kafka.retries}")
-    private String KAFKA_SERVER_RETRIES;
+    @Value("${spring.kafka.producer.client-id:processing-service-producer}")
+    private String clientId;
 
-    @Value("${spring.kafka.acks}")
-    private String KAFKA_SERVER_ACKS_CONFIG;
+    @Value("${spring.kafka.producer.acks:all}")
+    private String ack;
+
+    @Value("${spring.kafka.producer.transaction-id-prefix:processing-service-tx-}")
+    private String transactionIdPrefix;
+
+    @Value("${spring.kafka.producer.retries:3}")
+    private int retries;
+
+    @Value("${spring.kafka.producer.batch-size:16384}")
+    private int batchSize;
+
+    @Value("${spring.kafka.producer.linger-ms:5}")
+    private int lingerMs;
+
+    @Value("${spring.kafka.producer.buffer-memory:33554432}")
+    private long bufferMemory;
+
+    @Value("${spring.kafka.producer.request-timeout-ms:30000}")
+    private int requestTimeoutMs;
+
+    @Value("${spring.kafka.producer.delivery-timeout-ms:120000}")
+    private int deliveryTimeoutMs;
+
+    @Value("${spring.kafka.producer.properties.enable.idempotence:true}")
+    private String enableIdempotence;
+
+    @Value("${spring.kafka.producer.properties.max.in.flight.requests.per.connection:1}")
+    private int maxInFlightRequestsPerConnection;
+
+    @Value("${spring.kafka.producer.properties.retry.backoff.ms:500}")
+    private int retryBackoffMs;
 
 
 
-//    @Bean
-//    public NewTopic orderTopic(){
-//        return TopicBuilder.name("processing_topic").partitions(3).replicas(1).build();
-//    }
+// =========================================================
+    // Producer Factory
+    // =========================================================
 
-    /*
-
-     Producer Configuration
-     */
     @Bean
     public ProducerFactory<String, String> producerFactory() {
+        Map<String, Object> props = producerConfigs();
+        DefaultKafkaProducerFactory<String, String> factory =
+                new DefaultKafkaProducerFactory<>(props);
 
-        Map<String, Object> config = new HashMap<>();
+        // Set transactional ID prefix for exactly-once semantics
+        factory.setTransactionIdPrefix(transactionIdPrefix);
 
-        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_BOOTSTRAP_SERVER);
-        config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JacksonJsonSerializer.class);
-
-        config.put(ProducerConfig.ACKS_CONFIG, KAFKA_SERVER_ACKS_CONFIG);
-        config.put(ProducerConfig.RETRIES_CONFIG, KAFKA_SERVER_RETRIES);
-
-        return new DefaultKafkaProducerFactory<>(config);
+        return factory;
     }
 
+// Kafka Template
+    // =========================================================
+
+    /**
+     * KafkaTemplate — primary bean used by OutboxPoller to send messages.
+     * Transactional by default (uses producerFactory with transactionIdPrefix).
+     */
     @Bean
-    public KafkaTemplate<String, String> kafkaTemplate() {
-        return new KafkaTemplate<>(producerFactory());
+    public KafkaTemplate<String, String> kafkaTemplate(
+            ProducerFactory<String, String> producerFactory) {
+
+        KafkaTemplate<String, String> template = new KafkaTemplate<>(producerFactory);
+        template.setDefaultTopic("saga.result");   // fallback topic (rarely used directly)
+        return template;
     }
 
+    // =========================================================
+    // Kafka Transaction Manager
+    // =========================================================
+
+    /**
+     * KafkaTransactionManager — used when you need to coordinate
+     * a Kafka publish with a DB transaction (exactly-once).
+     *
+     * Usage in OutboxPoller:
+     *   @Transactional("kafkaTransactionManager")
+     *   public void pollAndPublish() { ... }
+     *
+     * This ensures: if Kafka send succeeds but DB update fails → rollback both.
+     */
+//    @Bean
+//    public KafkaTransactionManager<String, String> kafkaTransactionManager(
+//            ProducerFactory<String, String> producerFactory) {
+//        return new KafkaTransactionManager<>(producerFactory);
+//    }
 
 
+    // =========================================================
+    // Producer Config Properties
+    // =========================================================
+
+    private Map<String, Object> producerConfigs() {
+        Map<String, Object> props = new HashMap<>();
+
+        // ── Connection ────────────────────────────────────────
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,  bootstrapServers);
+        props.put(ProducerConfig.CLIENT_ID_CONFIG,          clientId);
+
+        // ── Serializers ───────────────────────────────────────
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,   StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JacksonJsonSerializer.class);
+
+        // ── Reliability ───────────────────────────────────────
+        // acks=all: leader + all in-sync replicas must acknowledge
+        props.put(ProducerConfig.ACKS_CONFIG, ack);
+
+        // Idempotence: exactly-once in a single producer session (no duplicates on retry)
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, enableIdempotence);
+
+        // max.in.flight = 1 with idempotence ensures strict ordering per partition
+        props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, maxInFlightRequestsPerConnection);
+
+        // ── Retry ─────────────────────────────────────────────
+        props.put(ProducerConfig.RETRIES_CONFIG,              retries);
+        props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG,     retryBackoffMs);     // wait 500ms between retries
+        props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG,   requestTimeoutMs);
+        props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG,  deliveryTimeoutMs);
+
+        // ── Batching & Throughput ─────────────────────────────
+        // batch.size: accumulate up to 16KB before sending
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG,    batchSize);
+
+        // linger.ms: wait up to 5ms for more records to batch together
+        props.put(ProducerConfig.LINGER_MS_CONFIG,     lingerMs);
+
+        // buffer.memory: total memory for unsent messages (32MB)
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, bufferMemory);
+
+        // ── Compression ───────────────────────────────────────
+        // snappy: good balance of speed and compression ratio
+        props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "snappy");
+
+        return props;
+    }
 
 
 }

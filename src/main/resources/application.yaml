@@ -3,28 +3,47 @@ server:
 
 spring:
   application:
-    name: processing
+    name: processing-service
   datasource:
-    url: jdbc:mysql://processing-mysql:3306/processing_db?allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://processing-mysql:3306/processing_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
-    database-platform: org.hibernate.dialect.MySQLDialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
   kafka:
-    bootstrap-servers: kafka:29092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
+    # ── Consumer ──────────────────────────────────────────────
     acks: all
     retries: 3
     consumer:
       group-id: processing-group
       auto-offset-reset: earliest
       retry_backoff_ms: 3000
-      topic: order_topic
+      #topic: order_topic
+      max-poll-records: 10
+    # ── Producer ──────────────────────────────────────────────
+    producer:
+      client-id: processing-service-producer
+      transaction-id-prefix: processing-service-tx-
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      acks: all
+      retries: 3
+      batch-size: 16384           # 16 KB — accumulate before flush
+      linger-ms: 5                # wait up to 5ms to batch records
+      buffer-memory: 33554432     # 32 MB total producer buffer
+      compression-type: snappy
+      request-timeout-ms: 30000
+      delivery-timeout-ms: 120000
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 1
+        retry.backoff.ms: 500
 
 logging:
   level:
@@ -49,3 +68,31 @@ resilience4j:
         eventConsumerBufferSize: 100
 management.health.circuitbreakers.enabled: true
 management.health.ratelimiters.enabled: true
+
+# Kafka topics
+processing:
+  kafka:
+    # Outbound topics (published via Outbox)
+    topics:
+      inventory: inventory.check.requested
+      payment: payment.requested
+      order-confirm: order.confirm.requested
+      notification: notification.requested
+      compensation: saga.compensation.requested
+      saga-result: saga.result
+    # Inbound topics (consumed by Kafka listeners)
+    consumer-topics:
+      order-created: order.created
+      inventory-result: inventory.check.result
+      payment-result: payment.result
+      order-confirm-result: order.confirm.result
+      notification-result: notification.result
+      compensation-result: saga.compensation.result
+      dlt: processing.service.DLT   # Dead Letter Topic
+  outbox:
+    poller:
+      fixed-delay-ms: 2000
+    retry:
+      max-retries: 3
+  saga:
+    notification-critical: false   # if true, notification failure rolls back saga

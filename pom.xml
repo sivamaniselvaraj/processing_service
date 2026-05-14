@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>org.assignments</groupId>
-    <artifactId>processing</artifactId>
+    <artifactId>processing-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <description>processing</description>
     <url/>

@@ -1,10 +1,11 @@
 package org.assignments.processing.enums;
 
-public enum JobStatus {
-    PENDING,
+public enum StepStatus {
+
     IN_PROGRESS,
     COMPLETED,
     FAILED,
-    RETRYING,
-    CANCELLED
+    SKIPPED,
+    COMPENSATING
+
 }
