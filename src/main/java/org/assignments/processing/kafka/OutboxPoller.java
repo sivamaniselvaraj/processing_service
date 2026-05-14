@@ -45,7 +45,7 @@ public class OutboxPoller {
      * SpEL expression converts the long to a String as required by @Scheduled.
      */
     @Scheduled(fixedDelayString = "${processing.outbox.poller.fixed-delay-ms}")
-    //@Transactional
+    @Transactional("kafkaTransactionManager")
     public void pollAndPublish() {
         List<OutboxEvent> pendingEvents = outboxEventRepository.findRetryableEvents();
         if (pendingEvents.isEmpty()) return;

@@ -2,7 +2,6 @@ package org.assignments.processing.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.protocol.types.Field;
@@ -19,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -48,10 +48,10 @@ public class ProcessingService {
 
     // Kafka topics
     @Value("${processing.kafka.topics.inventory}")
-    private static String TOPIC_INVENTORY ;
+    private static final String TOPIC_INVENTORY = "inventory.check.requested";
 
     @Value("${processing.kafka.topics.payment.requested}")
-    private static String TOPIC_PAYMENT        = "payment.requested";
+    private static final String TOPIC_PAYMENT        = "payment.requested";
     @Value("${processing.kafka.topics.order.confirm.requested}")
     private static final String TOPIC_ORDER_CONFIRM  = "order.confirm.requested";
     @Value("${processing.kafka.topics.notification.requested}")
@@ -72,7 +72,8 @@ public class ProcessingService {
     // 1. ORDER RECEIVED
     // =========================================================
 
-    @Transactional
+    //@Transactional
+    @Transactional("transactionManager")
     public Job handleOrderCreated(OrderEvent orderEvent) {
         log.info("ORDER_CREATED received orderId={}", orderEvent.getOrderId());
 

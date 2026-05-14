@@ -1,5 +1,6 @@
 package org.assignments.processing.config;
 
+import jakarta.persistence.EntityManagerFactory;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -14,6 +15,8 @@ import org.springframework.kafka.core.*;
 import org.springframework.kafka.support.serializer.JacksonJsonDeserializer;
 import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 import org.springframework.kafka.transaction.KafkaTransactionManager;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -108,11 +111,16 @@ public class KafkaProducerConfig {
      *
      * This ensures: if Kafka send succeeds but DB update fails → rollback both.
      */
-//    @Bean
-//    public KafkaTransactionManager<String, String> kafkaTransactionManager(
-//            ProducerFactory<String, String> producerFactory) {
-//        return new KafkaTransactionManager<>(producerFactory);
-//    }
+    @Bean
+    public KafkaTransactionManager<String, String> kafkaTransactionManager(
+            ProducerFactory<String, String> producerFactory) {
+        return new KafkaTransactionManager<>(producerFactory);
+    }
+
+    @Bean
+    public PlatformTransactionManager transactionManager(EntityManagerFactory emf) {
+        return new JpaTransactionManager(emf);
+    }
 
 
     // =========================================================

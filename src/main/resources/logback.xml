@@ -30,4 +30,5 @@
         <appender-ref ref="STDOUT" />
         <appender-ref ref="FILE_APPENDER"/>
     </root>
+    <org.springframework.kafka level="ERROR" />
 </configuration>

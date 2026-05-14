@@ -46,7 +46,7 @@ public class ApprovalService {
     ProcessingService          processingService;
 
     @Value("${processing.kafka.topics.payment.requested}")
-    private static String TOPIC_PAYMENT        = "payment.requested";
+    private static final String TOPIC_PAYMENT  = "payment.requested";
     @Value("${processing.kafka.topics.order.confirm.requested}")
     private static final String TOPIC_ORDER_CONFIRM  = "order.confirm.requested";
     @Value("${processing.kafka.topics.notification.requested}")

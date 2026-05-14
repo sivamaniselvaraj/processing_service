@@ -31,6 +31,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <spring-cloud.version>2025.1.0</spring-cloud.version>
         <mysql-connector.version>8.0.33</mysql-connector.version>
+        <jackson-datatype-jsr310.version>2.15.2</jackson-datatype-jsr310.version>
     </properties>
     <dependencies>
         <dependency>
@@ -80,6 +81,11 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>3.0.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <version>${jackson-datatype-jsr310.version}</version>
         </dependency>
     </dependencies>
     <dependencyManagement>

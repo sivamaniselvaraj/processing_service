@@ -33,8 +33,8 @@ public class OrderEventConsumer {
         String correlationId = extractHeader(record, "X-Correlation-Id");
         String eventType     = extractHeader(record, "X-Event-Type");
 
-        log.info("ORDER_CREATED consumed topic={} partition={} offset={} correlationId={} eventType={}",
-                record.topic(), record.partition(), record.offset(), correlationId, eventType);
+        log.info("ORDER_CREATED consumed topic={} partition={} offset={} correlationId={} eventType={} record_value={}",
+                record.topic(), record.partition(), record.offset(), correlationId, eventType, record.value());
 
         try {
             OrderEvent event = objectMapper.readValue(record.value(), OrderEvent.class);

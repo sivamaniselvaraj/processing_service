@@ -17,13 +17,15 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
+    listener:
+      ack-mode: manual
     # ── Consumer ──────────────────────────────────────────────
     acks: all
     retries: 3
     consumer:
       group-id: processing-group
       auto-offset-reset: earliest
-      retry_backoff_ms: 3000
+      retry_backoff_ms: 1000
       #topic: order_topic
       max-poll-records: 10
     # ── Producer ──────────────────────────────────────────────
