@@ -13,7 +13,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Builder
 public class OrderItem {
-    private UUID id;
+    private int id;
     private int quantity;
     private BigDecimal price;
     private BigDecimal subtotal;

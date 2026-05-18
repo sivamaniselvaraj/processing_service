@@ -2,6 +2,7 @@ package org.assignments.processing.controller;
 
 
 import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.assignments.processing.dto.ApprovalRequest;
@@ -16,11 +17,11 @@ import java.util.UUID;
 @Slf4j
 @RestController
 @RequestMapping("/approvals")
-@RequiredArgsConstructor
+//@RequiredArgsConstructor
 public class ApprovalController {
 
     @Autowired
-    ApprovalService approvalService;
+    private ApprovalService approvalService;
 
     /**
      * GET /api/v1/approvals/{jobId}

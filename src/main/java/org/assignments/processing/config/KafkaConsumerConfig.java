@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
-@EnableKafka
+//@EnableKafka
 public class KafkaConsumerConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
@@ -53,7 +53,7 @@ public class KafkaConsumerConfig {
         config.put(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG, KAFKA_RETRY_BACKOFF_MILLI_SEC);
         config.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,    10);
         JacksonJsonDeserializer<String> payloadJsonDeserializer = new JacksonJsonDeserializer<>();
-        payloadJsonDeserializer.addTrustedPackages("*");
+        payloadJsonDeserializer.addTrustedPackages("org.assignments.processing.dto");
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), payloadJsonDeserializer);
     }
 

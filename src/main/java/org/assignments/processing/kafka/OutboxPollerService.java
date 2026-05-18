@@ -1,22 +1,20 @@
 package org.assignments.processing.kafka;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.header.internals.RecordHeader;
 import org.assignments.processing.entity.OutboxEvent;
 import org.assignments.processing.enums.OutboxStatus;
 import org.assignments.processing.repository.OutboxEventRepository;
-import org.assignments.processing.utils.ApplicationConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.kafka.support.SendResult;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -27,12 +25,12 @@ import java.util.concurrent.CompletableFuture;
  *   processing.outbox.poller.fixed-delay-ms
  */
 @Slf4j
-@Component
-@RequiredArgsConstructor
-public class OutboxPoller {
+@Service
+//@RequiredArgsConstructor
+public class OutboxPollerService {
 
     @Autowired
-     OutboxEventRepository outboxEventRepository;
+    OutboxEventRepository outboxEventRepository;
 
     @Autowired
     KafkaTemplate<String, String> kafkaTemplate;//
@@ -44,21 +42,27 @@ public class OutboxPoller {
      * fixedDelayString reads processing.outbox.poller.fixed-delay-ms from yaml.
      * SpEL expression converts the long to a String as required by @Scheduled.
      */
-    @Scheduled(fixedDelayString = "${processing.outbox.poller.fixed-delay-ms}")
-    @Transactional("kafkaTransactionManager")
+    @Scheduled(fixedDelayString = "${processing.outbox.poller.fixed-delay-ms:2000}")
+    @Transactional //("kafkaTransactionManager")//(transactionManager = "kafkaTransactionManager")
+    //@Qualifier("kafkaTransactionManager")
+    //kafkaTransactionManager,transactionManager
     public void pollAndPublish() {
         List<OutboxEvent> pendingEvents = outboxEventRepository.findRetryableEvents();
         if (pendingEvents.isEmpty()) return;
 
-        log.debug("OutboxPoller: processing {} pending event(s)", pendingEvents.size());
+        log.info("OutboxPoller: processing {} pending event(s)", pendingEvents.size());
         pendingEvents.forEach(this::publishEvent);
     }
 
     private void publishEvent(OutboxEvent event) {
-
-
         try {
-            CompletableFuture<SendResult<String, String>> future = kafkaTemplate.send(buildProducerRecord(event));
+            log.info("publishEvent: correlationId={} type={} order_id={} topic={}",   event.getCorrelationId(),
+                    event.getEventType(),event.getOrderId(), event.getTopic());
+
+
+            CompletableFuture<SendResult<String, String>> future =
+                    kafkaTemplate.send(buildProducerMessage(event));
+            //kafkaTemplate.executeInTransaction(kt -> kt.send(buildProducerMessage(event)));
 
             future.whenComplete((result, ex) -> {
                 if (ex == null) {
@@ -96,30 +100,26 @@ public class OutboxPoller {
                 log.error("Outbox FAILED after {}/{} retries: eventId={} correlationId={} error={}",
                         newRetryCount, maxRetries,
                         event.getEventId(), event.getCorrelationId(), ex.getMessage());
+                ex.printStackTrace();
             } else {
                 log.warn("Outbox publish failed (attempt {}/{}): eventId={} error={}",
                         newRetryCount, maxRetries, event.getEventId(), ex.getMessage());
             }
+           log.info("Error while publishing ", ex);
 
             outboxEventRepository.save(event);
         }
     }
 
-    private ProducerRecord<String, String> buildProducerRecord(OutboxEvent event) {
-        ProducerRecord<String, String> record = new ProducerRecord<>(
-                event.getTopic(),
-                null,
-                event.getPartitionKey(),
-                event.getPayload()
-        );
-
-        record.headers().add(new RecordHeader(ApplicationConstants.HEADER_CORRELATION_ID,
-                event.getCorrelationId().toString().getBytes(StandardCharsets.UTF_8)));
-        record.headers().add(new RecordHeader(ApplicationConstants.HEADER_EVENT_TYPE,
-                event.getEventType().getBytes(StandardCharsets.UTF_8)));
-        record.headers().add(new RecordHeader(ApplicationConstants.HEADER_ORDER_ID,
-                event.getOrderId().toString().getBytes(StandardCharsets.UTF_8)));
-
-        return record;
+    private Message<String> buildProducerMessage(OutboxEvent outbox) {
+        Message<String> kafkaMsg = MessageBuilder
+                .withPayload(outbox.getPayload())
+                .setHeader(KafkaHeaders.TOPIC, outbox.getTopic())
+                .setHeader(KafkaHeaders.KEY, String.valueOf(outbox.getOrderId()))
+                .setHeader("X-Correlation-Id", String.valueOf(outbox.getCorrelationId()))
+                .setHeader("X-Outbox-Id", String.valueOf(outbox.getEventId()))
+                .setHeader("X-Event-Type", outbox.getEventType())
+                .build();
+        return kafkaMsg;
     }
 }

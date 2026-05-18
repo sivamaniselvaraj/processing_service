@@ -33,28 +33,28 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
+//@RequiredArgsConstructor
 public class ApprovalService {
 
     @Autowired
-     JobRepository jobRepository;
+    private JobRepository jobRepository;
     @Autowired
-    ProcessingStatusRepository processingStatusRepository;
+    private ProcessingStatusRepository processingStatusRepository;
     @Autowired
-    OutboxService              outboxService;
+    private OutboxService              outboxService;
     @Autowired
-    ProcessingService          processingService;
+    private ProcessingService          processingService;
 
-    @Value("${processing.kafka.topics.payment.requested}")
-    private static final String TOPIC_PAYMENT  = "payment.requested";
-    @Value("${processing.kafka.topics.order.confirm.requested}")
-    private static final String TOPIC_ORDER_CONFIRM  = "order.confirm.requested";
-    @Value("${processing.kafka.topics.notification.requested}")
-    private static final String TOPIC_NOTIFICATION   = "notification.requested";
-    @Value("${processing.kafka.topics.saga.compensation.requested}")
-    private static final String TOPIC_COMPENSATION   = "saga.compensation.requested";
-    @Value("${processing.kafka.topics.saga.result}")
-    private static final String TOPIC_SAGA_RESULT    = "saga.result";
+    @Value("${processing.kafka.topics.payment-requested:payment.requested}")
+    private String TOPIC_PAYMENT;
+    @Value("${processing.kafka.topics.order.confirm-requested:order.confirm.requested}")
+    private String TOPIC_ORDER_CONFIRM;
+    @Value("${processing.kafka.topics.notification-requested:notification.requested}")
+    private String TOPIC_NOTIFICATION;
+    @Value("${processing.kafka.topics.saga.compensation-requested:saga.compensation.requested}")
+    private String TOPIC_COMPENSATION;
+    @Value("${processing.kafka.topics.saga.result:saga.result}")
+    private String TOPIC_SAGA_RESULT;
 
     // =========================================================
     // GET — current approval status

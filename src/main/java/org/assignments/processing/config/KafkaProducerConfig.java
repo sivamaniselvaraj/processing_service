@@ -1,6 +1,7 @@
 package org.assignments.processing.config;
 
 import jakarta.persistence.EntityManagerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -9,6 +10,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.*;
@@ -22,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
+@Slf4j
 public class KafkaProducerConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
@@ -76,7 +79,7 @@ public class KafkaProducerConfig {
                 new DefaultKafkaProducerFactory<>(props);
 
         // Set transactional ID prefix for exactly-once semantics
-        factory.setTransactionIdPrefix(transactionIdPrefix);
+        //factory.setTransactionIdPrefix(transactionIdPrefix);
 
         return factory;
     }
@@ -111,13 +114,16 @@ public class KafkaProducerConfig {
      *
      * This ensures: if Kafka send succeeds but DB update fails → rollback both.
      */
-    @Bean
-    public KafkaTransactionManager<String, String> kafkaTransactionManager(
-            ProducerFactory<String, String> producerFactory) {
-        return new KafkaTransactionManager<>(producerFactory);
-    }
+//    @Bean
+//    public KafkaTransactionManager<String, String> kafkaTransactionManager(
+//            ProducerFactory<String, String> producerFactory
+//    ) {
+//        log.info("creating kafkaTransactionManager");
+//        return new KafkaTransactionManager<>(producerFactory);
+//    }
 
     @Bean
+    //@Primary
     public PlatformTransactionManager transactionManager(EntityManagerFactory emf) {
         return new JpaTransactionManager(emf);
     }
@@ -129,10 +135,13 @@ public class KafkaProducerConfig {
 
     private Map<String, Object> producerConfigs() {
         Map<String, Object> props = new HashMap<>();
-
+        log.info("KAFKA_BOOTSTRAP_SERVER {}", bootstrapServers);
         // ── Connection ────────────────────────────────────────
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,  bootstrapServers);
         props.put(ProducerConfig.CLIENT_ID_CONFIG,          clientId);
+
+
+        // 2026-05-14 16:51:58.339 [scheduling-1] INFO  o.a.k.clients.producer.KafkaProducer - [Producer clientId=order-service-producer-1] Instantiated an idempotent producer.
 
         // ── Serializers ───────────────────────────────────────
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,   StringSerializer.class);
@@ -145,14 +154,16 @@ public class KafkaProducerConfig {
         // Idempotence: exactly-once in a single producer session (no duplicates on retry)
         props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, enableIdempotence);
 
+        props.put(ProducerConfig.TRANSACTION_TIMEOUT_CONFIG, 60000);
+
         // max.in.flight = 1 with idempotence ensures strict ordering per partition
         props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, maxInFlightRequestsPerConnection);
 
         // ── Retry ─────────────────────────────────────────────
         props.put(ProducerConfig.RETRIES_CONFIG,              retries);
         props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG,     retryBackoffMs);     // wait 500ms between retries
-        props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG,   requestTimeoutMs);
-        props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG,  deliveryTimeoutMs);
+        // props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG,   requestTimeoutMs);
+        // props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG,  deliveryTimeoutMs);
 
         // ── Batching & Throughput ─────────────────────────────
         // batch.size: accumulate up to 16KB before sending
@@ -169,6 +180,12 @@ public class KafkaProducerConfig {
         props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "snappy");
 
         return props;
+    }
+
+    @Bean
+    public NewTopic SagaResultTopic(){
+        log.info("creating the topic saga.result");
+        return TopicBuilder.name("saga.result").partitions(3).replicas(1).build();
     }
 
 

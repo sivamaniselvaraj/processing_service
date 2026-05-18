@@ -11,10 +11,10 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: create
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
+      ddl-auto: update
+#    properties:
+#      hibernate:
+#        dialect: org.hibernate.dialect.MySQLDialect
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
     listener:
@@ -40,11 +40,11 @@ spring:
       linger-ms: 5                # wait up to 5ms to batch records
       buffer-memory: 33554432     # 32 MB total producer buffer
       compression-type: snappy
-      request-timeout-ms: 30000
-      delivery-timeout-ms: 120000
+#      request-timeout-ms: 30000
+      # delivery-timeout-ms: 120000
       properties:
         enable.idempotence: true
-        max.in.flight.requests.per.connection: 1
+        #max.in.flight.requests.per.connection: 1
         retry.backoff.ms: 500
 
 logging:
@@ -76,11 +76,11 @@ processing:
   kafka:
     # Outbound topics (published via Outbox)
     topics:
-      inventory: inventory.check.requested
-      payment: payment.requested
-      order-confirm: order.confirm.requested
-      notification: notification.requested
-      compensation: saga.compensation.requested
+      inventory-requested: inventory.check.requested
+      payment-requested: payment.requested
+      order-confirm-requested: order.confirm.requested
+      notification-requested: notification.requested
+      compensation-requested: saga.compensation.requested
       saga-result: saga.result
     # Inbound topics (consumed by Kafka listeners)
     consumer-topics:
@@ -94,6 +94,9 @@ processing:
   outbox:
     poller:
       fixed-delay-ms: 2000
+    retry:
+      max-retries: 3
+  job:
     retry:
       max-retries: 3
   saga:

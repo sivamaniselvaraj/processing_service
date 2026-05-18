@@ -35,9 +35,9 @@ public class NotificationPublisher {
     private KafkaTemplate<String, String> kafkaTemplate;
 
     @Autowired
-    private final OutboxService outboxService;
+    private OutboxService outboxService;
 
-    @Value("${processing.kafka.topics.notification}")
+    @Value("${processing.kafka.topics.notification-requested:notification.requested}")
     private String notificationTopic;
 
 

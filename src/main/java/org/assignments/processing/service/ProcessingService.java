@@ -2,6 +2,7 @@ package org.assignments.processing.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.protocol.types.Field;
@@ -28,44 +29,45 @@ import java.util.UUID;
 
 @Service
 @Slf4j
+//@AllArgsConstructor
 //@RequiredArgsConstructor
 //@ConfigurationProperties(prefix = "processing")
 public class ProcessingService {
 
     @Autowired
-    JobRepository jobRepository;
+    private JobRepository jobRepository;
 
     @Autowired
-    ProcessingStatusRepository processingStatusRepository;
+    private ProcessingStatusRepository processingStatusRepository;
 
     @Autowired
-    OutboxService outboxService;
+    private OutboxService outboxService;
 
     @Autowired
-    JobQueryService jobQueryService;
+    private JobQueryService jobQueryService;
 
 
 
     // Kafka topics
-    @Value("${processing.kafka.topics.inventory}")
-    private static final String TOPIC_INVENTORY = "inventory.check.requested";
+    @Value("${processing.kafka.topics.inventory-requested:inventory.check.requested}")
+    private String TOPIC_INVENTORY;
 
-    @Value("${processing.kafka.topics.payment.requested}")
-    private static final String TOPIC_PAYMENT        = "payment.requested";
-    @Value("${processing.kafka.topics.order.confirm.requested}")
-    private static final String TOPIC_ORDER_CONFIRM  = "order.confirm.requested";
-    @Value("${processing.kafka.topics.notification.requested}")
-    private static final String TOPIC_NOTIFICATION   = "notification.requested";
-    @Value("${processing.kafka.topics.saga.compensation.requested}")
-    private static final String TOPIC_COMPENSATION   = "saga.compensation.requested";
-    @Value("${processing.kafka.topics.saga.result}")
-    private static final String TOPIC_SAGA_RESULT    = "saga.result";
+    @Value("${processing.kafka.topics.payment-requested:payment.requested}")
+    private String TOPIC_PAYMENT;
+    @Value("${processing.kafka.topics.order.confirm-requested:order.confirm.requested}")
+    private String TOPIC_ORDER_CONFIRM;
+    @Value("${processing.kafka.topics.notification-requested:notification.requested}")
+    private String TOPIC_NOTIFICATION;
+    @Value("${processing.kafka.topics.saga.compensation-requested:saga.compensation.requested}")
+    private String TOPIC_COMPENSATION;
+    @Value("${processing.kafka.topics.saga.result:saga.result}")
+    private String TOPIC_SAGA_RESULT;
 
-    @Value("${processing.job.retry.max-retries}")
-    private static final int MAX_RETRIES    = 3;
+    @Value("${processing.job.retry.max-retries:3}")
+    private int MAX_RETRIES;
 
-    @Value("${processing.saga.notification-critical}")
-    private static final boolean NOTIFICATION_CRITICAL = false;
+    @Value("${processing.saga.notification-critical:false}")
+    private boolean NOTIFICATION_CRITICAL;
 
 
     // =========================================================
