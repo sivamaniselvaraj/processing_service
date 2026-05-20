@@ -12,5 +12,6 @@ import java.util.UUID;
 public class InventoryCheckEvent {
     private UUID jobId;
     private UUID orderId;
+    private UUID customerId;
     private List<OrderItem> items;
 }

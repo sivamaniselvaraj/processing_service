@@ -40,6 +40,8 @@ public class OutboxService {
 
         String serializedPayload = JSONOperation.serialize(payload);
 
+        log.info("serializedPayload  {}", serializedPayload);
+
         OutboxEvent event = OutboxEvent.builder()
                 .correlationId(correlationId)   // ← Correlation Key
                 .orderId(orderId)

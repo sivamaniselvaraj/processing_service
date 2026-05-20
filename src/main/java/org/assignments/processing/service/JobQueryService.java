@@ -147,6 +147,10 @@ public class JobQueryService {
         return jobRepository.findById(jobId)
                 .orElseThrow(() -> new JobNotFoundException(jobId));
     }
+    public Job getJobByOrderIdOrThrow(UUID orderId) {
+        return jobRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new JobNotFoundException(orderId));
+    }
 
     private <E extends Enum<E>> E parseEnum(String value, Class<E> enumClass) {
         if (value == null || value.isBlank()) return null;

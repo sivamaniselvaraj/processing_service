@@ -1,9 +1,15 @@
 package org.assignments.processing.kafka;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.internals.RecordHeader;
+import org.assignments.processing.dto.InventoryCheckEvent;
 import org.assignments.processing.entity.OutboxEvent;
 import org.assignments.processing.enums.OutboxStatus;
 import org.assignments.processing.repository.OutboxEventRepository;
+import org.assignments.processing.utils.ApplicationConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -15,6 +21,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -38,6 +45,8 @@ public class OutboxPollerService {
     @Value("${processing.outbox.retry.max-retries}")
     int maxRetries;   // ← from yaml
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     /**
      * fixedDelayString reads processing.outbox.poller.fixed-delay-ms from yaml.
      * SpEL expression converts the long to a String as required by @Scheduled.
@@ -56,12 +65,12 @@ public class OutboxPollerService {
 
     private void publishEvent(OutboxEvent event) {
         try {
-            log.info("publishEvent: correlationId={} type={} order_id={} topic={}",   event.getCorrelationId(),
-                    event.getEventType(),event.getOrderId(), event.getTopic());
+            log.info("publishEvent: correlationId={} type={} order_id={} topic={} payload: {}", event.getCorrelationId(),
+                    event.getEventType(),event.getOrderId(), event.getTopic(), event.getPayload());
 
 
             CompletableFuture<SendResult<String, String>> future =
-                    kafkaTemplate.send(buildProducerMessage(event));
+                    kafkaTemplate.send(buildProducerRecord(event));
             //kafkaTemplate.executeInTransaction(kt -> kt.send(buildProducerMessage(event)));
 
             future.whenComplete((result, ex) -> {
@@ -100,26 +109,30 @@ public class OutboxPollerService {
                 log.error("Outbox FAILED after {}/{} retries: eventId={} correlationId={} error={}",
                         newRetryCount, maxRetries,
                         event.getEventId(), event.getCorrelationId(), ex.getMessage());
-                ex.printStackTrace();
             } else {
                 log.warn("Outbox publish failed (attempt {}/{}): eventId={} error={}",
                         newRetryCount, maxRetries, event.getEventId(), ex.getMessage());
             }
            log.info("Error while publishing ", ex);
-
             outboxEventRepository.save(event);
         }
     }
 
-    private Message<String> buildProducerMessage(OutboxEvent outbox) {
-        Message<String> kafkaMsg = MessageBuilder
-                .withPayload(outbox.getPayload())
-                .setHeader(KafkaHeaders.TOPIC, outbox.getTopic())
-                .setHeader(KafkaHeaders.KEY, String.valueOf(outbox.getOrderId()))
-                .setHeader("X-Correlation-Id", String.valueOf(outbox.getCorrelationId()))
-                .setHeader("X-Outbox-Id", String.valueOf(outbox.getEventId()))
-                .setHeader("X-Event-Type", outbox.getEventType())
-                .build();
-        return kafkaMsg;
+    private ProducerRecord<String, String> buildProducerRecord(OutboxEvent event) throws JsonProcessingException {
+        ProducerRecord<String, String> record = new ProducerRecord<>(
+                event.getTopic(),
+                null,
+                event.getPartitionKey(),
+                event.getPayload()
+        );
+
+        record.headers().add(new RecordHeader(ApplicationConstants.HEADER_CORRELATION_ID,
+                event.getCorrelationId().toString().getBytes(StandardCharsets.UTF_8)));
+        record.headers().add(new RecordHeader(ApplicationConstants.HEADER_EVENT_TYPE,
+                event.getEventType().getBytes(StandardCharsets.UTF_8)));
+        record.headers().add(new RecordHeader(ApplicationConstants.HEADER_ORDER_ID,
+                event.getOrderId().toString().getBytes(StandardCharsets.UTF_8)));
+
+        return record;
     }
 }

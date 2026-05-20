@@ -2,10 +2,7 @@ package org.assignments.processing.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.AllArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.common.protocol.types.Field;
 import org.assignments.processing.dto.*;
 import org.assignments.processing.entity.Job;
 import org.assignments.processing.entity.ProcessingStatus;
@@ -17,14 +14,11 @@ import org.assignments.processing.repository.ProcessingStatusRepository;
 import org.assignments.processing.utils.JSONOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.UUID;
 
 @Service
@@ -50,10 +44,10 @@ public class ProcessingService {
 
     // Kafka topics
     @Value("${processing.kafka.topics.inventory-requested:inventory.check.requested}")
-    private String TOPIC_INVENTORY;
+    private String TOPIC_INVENTORY_CHECK;
 
     @Value("${processing.kafka.topics.payment-requested:payment.requested}")
-    private String TOPIC_PAYMENT;
+    private String TOPIC_PAYMENT_REQUEST;
     @Value("${processing.kafka.topics.order.confirm-requested:order.confirm.requested}")
     private String TOPIC_ORDER_CONFIRM;
     @Value("${processing.kafka.topics.notification-requested:notification.requested}")
@@ -122,11 +116,12 @@ public class ProcessingService {
         outboxService.createEvent(
                 correlationId,                          // Correlation Key
                 orderEvent.getOrderId(),
-                TOPIC_INVENTORY,
+                TOPIC_INVENTORY_CHECK,
                 "INVENTORY_CHECK_REQUESTED",
                 InventoryCheckEvent.builder()
                         .jobId(correlationId)
                         .orderId(orderEvent.getOrderId())
+                        .customerId(orderEvent.getCustomerId())
                         .items(orderEvent.getItems())
                         .build()
         );
@@ -141,35 +136,37 @@ public class ProcessingService {
     // =========================================================
 
     @Transactional
-    public void handleInventoryCheckResult(InventoryResultEvent event) {
+    public void handleInventoryCheckResult(InventoryResultEvent event) throws JsonProcessingException {
         log.info("INVENTORY_CHECK_RESULT correlationId={} success={}",
-                event.getJobId(), event.isSuccess());
-
-        Job job = jobQueryService.getJobOrThrow(event.getJobId());
-        ProcessingStatus ps = getProcessingStatusOrThrow(event.getJobId());
+                event.getCorrelationId(), event.getOrderStatus().name());
+        ObjectMapper objectMapper = new ObjectMapper();
+        Job job = jobQueryService.getJobByOrderIdOrThrow(event.getOrderId());
+        ProcessingStatus ps = getProcessingStatusOrThrow(job.getJobId());
         UUID correlationId = job.getJobId();
 
-        if (event.isSuccess()) {
+        if (OrderStatus.REJECTED != event.getOrderStatus()) {
             ps.advanceTo(SagaStep.INVENTORY_CHECK, "INVENTORY_RESERVED");
             ps.markStepCompleted();
             ps.setSagaState(SagaState.IN_PROGRESS);
             processingStatusRepository.save(ps);
 
+            OrderEvent orderEvent = objectMapper.readValue(job.getPayload(), OrderEvent.class);
+
             outboxService.createEvent(
                     correlationId,
                     job.getOrderId(),
-                    TOPIC_PAYMENT,            // ← from yaml
+                    TOPIC_PAYMENT_REQUEST,            // ← from yaml
                     "PAYMENT_REQUESTED",
                     PaymentRequestEvent.builder()
                             .jobId(correlationId)
                             .orderId(job.getOrderId())
-                            .amount(event.getTotalAmount())
-                            .currency(event.getCurrency())
+                            .amount(orderEvent.getTotalAmount())
+                            .currency(orderEvent.getCurrency())
                             .build()
             );
         } else {
             failSaga(job, ps, correlationId, "INVENTORY_FAILED",
-                    "Inventory check failed: " + event.getFailureReason(), false);
+                    "Inventory check failed: " + event.getInventoryStatus(), false);
         }
     }
 
@@ -446,12 +443,12 @@ public class ProcessingService {
         switch (step) {
             case ORDER_RECEIVED ->
                     outboxService.createEvent(correlationId, job.getOrderId(),
-                            TOPIC_INVENTORY, "INVENTORY_CHECK_REQUESTED",
+                            TOPIC_INVENTORY_CHECK, "INVENTORY_CHECK_REQUESTED",
                             InventoryCheckEvent.builder()
                                     .jobId(correlationId).orderId(job.getOrderId()).build());
             case INVENTORY_CHECK ->
                     outboxService.createEvent(correlationId, job.getOrderId(),
-                            TOPIC_PAYMENT,"PAYMENT_REQUESTED",
+                            TOPIC_PAYMENT_REQUEST,"PAYMENT_REQUESTED",
                             PaymentRequestEvent.builder()
                                     .jobId(correlationId).orderId(job.getOrderId()).build());
             case PAYMENT_PROCESSING ->

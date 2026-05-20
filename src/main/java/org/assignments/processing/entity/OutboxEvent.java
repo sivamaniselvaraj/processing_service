@@ -51,7 +51,7 @@ public class OutboxEvent {
     /**
      * Serialized JSON payload
      */
-    @Column(name = "payload", columnDefinition = "TEXT", nullable = false)
+    @Column(name = "payload", columnDefinition = "json", nullable = false)
     private String payload;
 
     @Enumerated(EnumType.STRING)

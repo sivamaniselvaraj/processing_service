@@ -31,21 +31,23 @@ spring:
     # ── Producer ──────────────────────────────────────────────
     producer:
       client-id: processing-service-producer
-      transaction-id-prefix: processing-service-tx-
+      # transaction-id-prefix: processing-service-tx-
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
       acks: all
       retries: 3
       batch-size: 16384           # 16 KB — accumulate before flush
-      linger-ms: 5                # wait up to 5ms to batch records
+      linger-ms: 30               # wait up to 30ms to batch records
       buffer-memory: 33554432     # 32 MB total producer buffer
       compression-type: snappy
 #      request-timeout-ms: 30000
       # delivery-timeout-ms: 120000
       properties:
+        linger.ms: 30   # wait up to 30ms to batch records
         enable.idempotence: true
         #max.in.flight.requests.per.connection: 1
-        retry.backoff.ms: 500
+        retry.backoff.ms: 10000 # 10s retry backoff
+        delivery.timeout.ms: 1500000 # 25min delivery time
 
 logging:
   level:

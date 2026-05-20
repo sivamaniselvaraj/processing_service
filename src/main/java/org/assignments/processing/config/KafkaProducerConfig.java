@@ -54,7 +54,7 @@ public class KafkaProducerConfig {
     @Value("${spring.kafka.producer.request-timeout-ms:30000}")
     private int requestTimeoutMs;
 
-    @Value("${spring.kafka.producer.delivery-timeout-ms:120000}")
+    @Value("${spring.kafka.producer.properties.delivery.timeout.ms:120000}")
     private int deliveryTimeoutMs;
 
     @Value("${spring.kafka.producer.properties.enable.idempotence:true}")
@@ -145,7 +145,7 @@ public class KafkaProducerConfig {
 
         // ── Serializers ───────────────────────────────────────
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,   StringSerializer.class);
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JacksonJsonSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
 
         // ── Reliability ───────────────────────────────────────
         // acks=all: leader + all in-sync replicas must acknowledge
@@ -163,7 +163,7 @@ public class KafkaProducerConfig {
         props.put(ProducerConfig.RETRIES_CONFIG,              retries);
         props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG,     retryBackoffMs);     // wait 500ms between retries
         // props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG,   requestTimeoutMs);
-        // props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG,  deliveryTimeoutMs);
+         props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG,  deliveryTimeoutMs);
 
         // ── Batching & Throughput ─────────────────────────────
         // batch.size: accumulate up to 16KB before sending

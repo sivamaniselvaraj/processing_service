@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS outbox_events (
     event_type          VARCHAR(100)    NOT NULL COMMENT 'e.g. INVENTORY_CHECK_REQUESTED',
 
     -- Serialized JSON event payload
-    payload             TEXT            NOT NULL,
+    payload             JSON            NOT NULL,
 
     status              VARCHAR(100)               NOT NULL DEFAULT 'PENDING',
 

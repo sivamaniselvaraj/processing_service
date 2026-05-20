@@ -12,4 +12,5 @@ public class JSONOperation {
             throw new RuntimeException("Failed to serialize outbox payload", e);
         }
     }
+
 }
